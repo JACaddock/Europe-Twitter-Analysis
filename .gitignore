@@ -350,5 +350,6 @@ MigrationBackup/
 .ionide/
 
 # Project based folders
-geoEurope/
-Keys/
+input/
+keys/
+output/
