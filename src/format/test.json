@@ -1,0 +1,26 @@
+{
+    "place": 
+    [
+        "country_code",
+        "country",
+        "name"
+    ],
+    "entities": 
+    {
+        "user_mentions": 
+        [
+            "id",
+            "screen_name"
+        ]
+    },
+    "text": [],
+    "user": 
+    [
+        "id",
+        "screen_name"
+    ],
+    "id": [],
+    "lang": [],
+    "in_reply_to_screen_name": [],
+    "created_at": []
+}

@@ -1,34 +1,68 @@
 import orjson, os.path
 
-def readInput(inplink):
-    inp = open("input/"+inplink+".json", 'rb')
+def readData(link, type):
+    inp = open(type+"/"+link+".json", 'rb')
     data = orjson.loads(inp.read())
     inp.close()
 
     return data
 
 
-def sortJson(inplink, outlink = ""):
-    data = readInput(inplink)
-    newdata = {}
+def sortJson(inplink, outlink = "", formatlink = "test", numberlines = 500):
+    datafile = open("input/"+inplink+".json", 'rb')
+    formatdata = readData(formatlink, "format")
+    
+    if (outlink != ""):
+        out = open("output/"+outlink+".json", 'wb')
 
-    for i in data:
-        if (i == "place" or i == "entities" or i == "text" or i == "user" or i == 'id' or i == "created_at"):
-            newdata[i] = data[i]
+    newdata = {}
+    linenumber = 0
+
+    for line in datafile:
+        data = orjson.loads(line)
+        newdata = recursiveJson(data, formatdata, {})
+
+
+        if (outlink != ""):
+            out.write(orjson.dumps(newdata, option=orjson.OPT_APPEND_NEWLINE))
+
+        if (linenumber >= numberlines):
+            break
+
+        linenumber += 1
 
 
     if (outlink != ""):
-        print("outputting")
-        outputFile(outlink, newdata)
+        out.close()
 
-    else:
-        print("no output")
 
-    
-def outputFile(outlink, data):
-    out = open("output/"+outlink+".json", 'wb')
-    out.write(orjson.dumps(data))
-    out.close()
+
+def recursiveJson(dataa, datab, newdata):
+    for a in dataa:
+        for b in datab:
+            if (a == b):
+                if (type(dataa[a]).__name__ == 'dict'):
+                    for k in dataa[a]:
+                        if (k in datab[b]):
+                            if (type(datab[b]).__name__ == 'dict'):
+                                if (len(dataa[a][k]) == 1):
+                                    subdataa = dataa[a][k][0]
+                                
+                                else:
+                                    subdataa = dataa[a][k]
+                                
+                                newdata[a] = { k : recursiveJson(subdataa, datab[b][k], {}) }
+                        
+                            else:
+                                if not (a in newdata):
+                                    newdata[a] = {k: dataa[a][k]}
+
+                                else:                 
+                                    newdata[a] = {**newdata[a],  **{k: dataa[a][k]}}
+                else:
+                    newdata[a] = dataa[a]
+
+    return newdata
 
 
 
