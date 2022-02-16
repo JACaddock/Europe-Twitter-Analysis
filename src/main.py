@@ -52,4 +52,44 @@ if __name__ == "__main__":
             outputlink = ""
 
 
-    ds.sortJson(inputlink, outputlink, "test", 1000)
+    looping = True
+    while looping:
+        hasformat = input("Do you have a specific format file to use?: ")
+
+        if (hasformat.lower() == "yes" or hasformat.lower() == "y"):
+
+            formatlink = input("Enter format file name: ")
+
+            if (formatlink == ""):
+                print("You haven't entered a name")
+        
+            elif not (os.path.exists("format/"+formatlink+".json")):
+                print("This file does not exist")
+                print("Make sure the format file exists")
+            
+            else:
+                looping = False
+
+        elif (hasformat.lower() == "no" or hasformat.lower() == "n"):
+            looping = False
+            formatlink = "test"
+
+    looping = True
+    while looping:
+        specificnumber = input("Would you like to limit the number of lines read?: ")
+
+        if (specificnumber.lower() == "yes" or specificnumber.lower() == "y"):
+            numberoflines = int(input("Enter the number of lines: "))
+
+            if numberoflines > 0:
+                looping = False
+
+            else:
+                print("You didn't enter a valid number")
+
+        elif (specificnumber.lower() == "no" or specificnumber.lower() == "n"):
+            looping = False
+            numberoflines = -1
+            
+
+    ds.sortJson(inputlink, outputlink, formatlink, numberoflines)
