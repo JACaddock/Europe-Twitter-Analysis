@@ -1,5 +1,3 @@
-from asyncio.windows_events import NULL
-import string
 import orjson, os.path
 
 def readData(link, type):
