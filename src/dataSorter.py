@@ -22,6 +22,12 @@ def sortJson(inplink, outlink = "", formatlink = "test", numberlines = -1):
         newdata = recursiveJson(data, formatdata, {})
 
 
+        try:
+            if (newdata["entities"]["user_mentions"] == []):
+                newdata = {}
+        except:
+            newdata = {}
+
         if (outlink != "" and newdata != {}):
             out.write(orjson.dumps(newdata, option=orjson.OPT_APPEND_NEWLINE))
 
@@ -102,7 +108,7 @@ def recursiveJson(data, formatdata, newdata):
 
 
 
-def sortFolder(dir):
+def sortFolder(dir, formatlink, linelimit = -1):
 
     if not os.path.isdir("output/"+dir):
         os.mkdir("output/" + dir)
@@ -116,7 +122,7 @@ def sortFolder(dir):
             jsonpath = path.replace(".zip", ".json")
             zip_ref.extract(zip_ref.getinfo("geoEurope/"+jsonpath), 'input/'+dir)
             
-            sortJson(dir+"/geoEurope/"+jsonpath, dir+"/"+jsonpath, "gb", 200)
+            sortJson(dir+"/geoEurope/"+jsonpath, dir+"/"+jsonpath, formatlink, linelimit)
 
             os.remove("input/"+ dir + "/geoEurope/"+jsonpath)
 
@@ -126,29 +132,25 @@ def sortFolder(dir):
 
 
 
-def removeFolder(dir):
-    if os.path.isdir("input/"+dir):
-        shutil.rmtree("input/"+dir)
-
-    if os.path.isdir("output/"+dir):
-        shutil.rmtree("output/"+dir)
+def removeFolder(type, dir):
+    if os.path.isdir(type+"/"+dir):
+        shutil.rmtree(type+"/"+dir)
 
 
 
 
-sortFolder("zips")
 
-
-"""
 if __name__ == '__main__':
     try:
-        globals()[sys.argv[1]](sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5]))
+        removeFolder("input", "zips")
+        removeFolder("output", "zips")
+        sortFolder("zips", "gb")
+        #globals()[sys.argv[1]](sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5]))
     except:
         try:
             globals()[sys.argv[1]](sys.argv[2], sys.argv[3], sys.argv[4])
         except:
             globals()[sys.argv[1]](sys.argv[2], sys.argv[3])
 
-"""
 
     
