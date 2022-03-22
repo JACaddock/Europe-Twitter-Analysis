@@ -1,4 +1,12 @@
 import orjson, sys, os, zipfile, shutil
+from deep_translator import GoogleTranslator
+
+
+keywords = {'en': ["covid", "pandemic"]}
+supported_languages = ['en']
+
+
+
 
 def readData(link, type):
     inp = open(type+"/"+link+".json", 'rb')
@@ -8,7 +16,8 @@ def readData(link, type):
     return data
 
 
-def sortJson(inplink, outlink = "", formatlink = "test", numberlines = -1):
+
+def sortJson(inplink, filenumber, totalfiles, outlink = "", formatlink = "test", numberlines = -1):
     datafile = open("input/" + inplink, 'rb')
     formatdata = readData(formatlink, "format")
     
@@ -19,17 +28,25 @@ def sortJson(inplink, outlink = "", formatlink = "test", numberlines = -1):
 
     for line in datafile:
         data = orjson.loads(line)
-        newdata = recursiveJson(data, formatdata, {})
+        newdata = sortData(data, formatdata, {})
 
 
         try:
             if (newdata["entities"]["user_mentions"] == []):
                 newdata = {}
+            else:
+                lang = newdata["lang"]
+                if not (lang in supported_languages):
+                    supported_languages.append(lang)
+                    translateKeywords(lang)
+
+                newdata = contentCheck(newdata, lang)
         except:
             newdata = {}
 
         if (outlink != "" and newdata != {}):
             out.write(orjson.dumps(newdata, option=orjson.OPT_APPEND_NEWLINE))
+            userProfile(newdata)
 
         if (numberlines == 0):
             break
@@ -39,11 +56,17 @@ def sortJson(inplink, outlink = "", formatlink = "test", numberlines = -1):
 
 
     if (outlink != ""):
+        filesize = out.tell()
         out.close()
 
+        if (filesize < 1):
+            os.remove("output/" + outlink)
+
+        print("File Completed: " + str(filenumber) + "/" + str(totalfiles) )
 
 
-def recursiveJson(data, formatdata, newdata):
+
+def sortData(data, formatdata, newdata):
     for a in data:
         for b in formatdata:
             if (a == b):
@@ -56,10 +79,10 @@ def recursiveJson(data, formatdata, newdata):
                                         for m in formatdata[b][k]:
                                             
                                             if not (a in newdata):
-                                                newdata[a] = {k : [ recursiveJson(l, m, {})] }
+                                                newdata[a] = {k : [ sortData(l, m, {})] }
 
                                             else:
-                                                newdata[a][k].append(recursiveJson(l, m, {}))  
+                                                newdata[a][k].append(sortData(l, m, {}))  
 
 
                                 else:
@@ -108,49 +131,77 @@ def recursiveJson(data, formatdata, newdata):
 
 
 
-def sortFolder(dir, formatlink, linelimit = -1):
+def sortFolder(dir, formatlink = "test", linelimit = -1):
 
     if not os.path.isdir("output/"+dir):
         os.mkdir("output/" + dir)
+    else:
+        shutil.rmtree("output/" + dir)
+        os.mkdir("output/" + dir)
+
+    if not os.path.isdir("output/profiles"):
+        os.mkdir("output/profiles")
+    else:
+        shutil.rmtree("output/profiles")
+        os.mkdir("output/profiles")
 
     if os.path.isdir("input/"+dir):
         shutil.rmtree("input/"+dir)
 
+    filenumber = 0
+    totalfiles = len([name for name in os.listdir(dir) if zipfile.is_zipfile(dir+"/"+name)])
     for path in os.listdir(dir):
         if(zipfile.is_zipfile(dir+"/"+path)):
             zip_ref = zipfile.ZipFile(dir+"/"+path, 'r')
             jsonpath = path.replace(".zip", ".json")
             zip_ref.extract(zip_ref.getinfo("geoEurope/"+jsonpath), 'input/'+dir)
             
-            sortJson(dir+"/geoEurope/"+jsonpath, dir+"/"+jsonpath, formatlink, linelimit)
+            filenumber += 1
+            sortJson(dir+"/geoEurope/"+jsonpath, filenumber, totalfiles, dir+"/"+jsonpath, formatlink, linelimit)
 
             os.remove("input/"+ dir + "/geoEurope/"+jsonpath)
-
 
     shutil.rmtree("input/"+dir)
 
 
+def translateKeywords(lang):
+    translated_words = []
+    
+    for word in keywords["en"]:
+        translation = GoogleTranslator(source='auto', target=lang).translate(text=word)
+        translated_words.append(translation)
+    
+    keywords[lang] = translated_words
 
 
-def removeFolder(type, dir):
-    if os.path.isdir(type+"/"+dir):
-        shutil.rmtree(type+"/"+dir)
+def contentCheck(data, lang):
+    text = data["text"]    
+
+    for word in keywords[lang]:
+        if word in text.lower():
+            return data
+    
+    return {}
 
 
+def userProfile(data):
+    profile = open("output/profiles/" + str(data["user"]["id"]) + ".json", 'ab')
+    
+    if (False):
+        text = data["text"]
+        translation = GoogleTranslator(source='auto').translate(text=text)
+        data["text"] = translation
+    
+    profile.write(orjson.dumps(data, option=orjson.OPT_APPEND_NEWLINE))
+    profile.close()
 
 
 
 if __name__ == '__main__':
     try:
-        removeFolder("input", "zips")
-        removeFolder("output", "zips")
-        sortFolder("zips", "gb")
-        #globals()[sys.argv[1]](sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5]))
+        sortFolder("zips")
     except:
-        try:
-            globals()[sys.argv[1]](sys.argv[2], sys.argv[3], sys.argv[4])
-        except:
-            globals()[sys.argv[1]](sys.argv[2], sys.argv[3])
+        print("fail")
 
 
     

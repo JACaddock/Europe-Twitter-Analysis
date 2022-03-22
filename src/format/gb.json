@@ -18,6 +18,7 @@
         "screen_name": null
     },
     "id": null,
-    "lang": "en",
-    "in_reply_to_screen_name": null
+    "lang": null,
+    "in_reply_to_screen_name": null,
+    "created_at": null
 }
