@@ -1,8 +1,8 @@
-import orjson, sys, os, zipfile, shutil
+import orjson, os, zipfile, shutil, re, math
 from deep_translator import GoogleTranslator
 
 
-keywords = {'en': ["covid", "pandemic"]}
+keywords = {'en': ["covid", "pandemic", "help", "love"]}
 supported_languages = ['en']
 
 
@@ -70,7 +70,10 @@ def sortData(data, formatdata, newdata):
     for a in data:
         for b in formatdata:
             if (a == b):
-                if (type(data[a]) is dict):
+                if (a == "text"):
+                    newdata[a] = re.sub('@[\w]+','',data[a])
+
+                elif (type(data[a]) is dict):
                     if (type(formatdata[b]) is dict):
                         for k in data[a]:
                             if (k in formatdata[b]):
@@ -163,6 +166,8 @@ def sortFolder(dir, formatlink = "test", linelimit = -1):
 
     shutil.rmtree("input/"+dir)
 
+    userLocationSetter()
+
 
 def translateKeywords(lang):
     translated_words = []
@@ -175,7 +180,7 @@ def translateKeywords(lang):
 
 
 def contentCheck(data, lang):
-    text = data["text"]    
+    text = data["text"]
 
     for word in keywords[lang]:
         if word in text.lower():
@@ -185,23 +190,99 @@ def contentCheck(data, lang):
 
 
 def userProfile(data):
-    profile = open("output/profiles/" + str(data["user"]["id"]) + ".json", 'ab')
-    
     if (False):
         text = data["text"]
         translation = GoogleTranslator(source='auto').translate(text=text)
         data["text"] = translation
+
+
+    tweet = { "created_at": data["created_at"], "lang": data["lang"], "text": data["text"], "entities": data["entities"], "id": data["id"], "in_reply_to_screen_name": data["in_reply_to_screen_name"], "place": data["place"] }
+    mention = data["entities"]["user_mentions"]
+
+    if (os.path.exists("output/profiles/" + str(data["user"]["id"]) + ".json")):
+        profile = open("output/profiles/" + str(data["user"]["id"]) + ".json", 'rb')
+        profile_data = orjson.loads(profile.read())
+        profile.close()
+
+        tweets = profile_data["tweets"]
+        tweets.append(tweet)
+
+        mentions = profile_data["mentions"]
+        for m in mention:
+            if m not in mentions:
+                mentions.append(m)
+
+        
+        updated = { "user": { "screen_name" : data["user"]["screen_name"], "id" : data["user"]["id"]}, "mentions": mentions, "tweets" : tweets }
+        profile_add = open("output/profiles/" + str(data["user"]["id"]) + ".json", 'wb')
+        profile_add.write(orjson.dumps(updated))
+        profile_add.close()
+        
+
     
-    profile.write(orjson.dumps(data, option=orjson.OPT_APPEND_NEWLINE))
-    profile.close()
+    else:
+        profile = open("output/profiles/" + str(data["user"]["id"]) + ".json", 'ab')
+        profile.write(orjson.dumps({ "user": { "screen_name" : data["user"]["screen_name"], "id" : data["user"]["id"]}, "mentions": mention, "tweets" : [tweet] }))
+        profile.close()
+    
+    
+    
+def userLocationSetter():
+    #Go through user profiles and determine they're location by where most of their tweets are sent from 
+    for path in os.listdir("output/profiles"):
+        if os.path.isfile("output/profiles/" + path):
+            profile = open("output/profiles/" + path, 'rb')
+            data = orjson.loads(profile.read())
+            profile.close()
+
+            tweets = data["tweets"]
+            num_tweet = math.floor((len(tweets)/2 + 1))
+            place = {}
+            places = {}
+
+            for tweet in tweets:
+                country_code = tweet["place"]["country_code"]
+                if country_code in place:
+                    place[country_code] += 1
+
+                else:
+                    place[country_code] = 1
+                    places[country_code] = tweet["place"]
+
+                
+                if (place[country_code] >= num_tweet): 
+                    addProfile({ "user": data["user"], "place": tweet["place"], "mentions": data["mentions"], "tweets" : tweets }, path, country_code)
+                    break
+
+            
+            max_number = 0
+            current_place = {}
+            for country, number in place.items():
+                if number > max_number:
+                    max_number = number
+                    current_place = places.get(country)
+
+            if (current_place != {}):
+                addProfile({ "user": data["user"], "place": current_place, "mentions": data["mentions"], "tweets" : tweets }, path, country_code)
+
+            os.remove("output/profiles/" + path)
+
+
+def addProfile(data, inp, out):
+    if not os.path.isdir("output/profiles/" + out ):
+        os.mkdir("output/profiles/" + out)
+
+    profile_add = open("output/profiles/" + out + "/" + inp, 'wb')
+    profile_add.write(orjson.dumps(data))
+    profile_add.close()
+
+    
+
 
 
 
 if __name__ == '__main__':
-    try:
-        sortFolder("zips")
-    except:
-        print("fail")
+    sortFolder("zips")
 
 
     
