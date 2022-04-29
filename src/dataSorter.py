@@ -2,8 +2,9 @@ import orjson, os, zipfile, shutil, re, math
 from deep_translator import GoogleTranslator
 
 
-keywords = {'en': ["covid", "pandemic", "help", "love"]}
+keywords = {'en': ["united kingdom", "uk", "brexit", "england", "brits", "britain"]}
 supported_languages = ['en']
+keywords_activated = True
 
 
 
@@ -17,7 +18,7 @@ def readData(link, type):
 
 
 
-def sortJson(inplink, filenumber, totalfiles, outlink = "", formatlink = "test", numberlines = -1):
+def sortJson(inplink, filenumber, totalfiles, outlink = "", formatlink = "test", doprofiles = True, numberlines = -1):
     datafile = open("input/" + inplink, 'rb')
     formatdata = readData(formatlink, "format")
     
@@ -27,32 +28,40 @@ def sortJson(inplink, filenumber, totalfiles, outlink = "", formatlink = "test",
     newdata = {}
 
     for line in datafile:
-        data = orjson.loads(line)
-        newdata = sortData(data, formatdata, {})
-
-
         try:
-            if (newdata["entities"]["user_mentions"] == []):
+            data = orjson.loads(line)
+            newdata = sortData(data, formatdata, {})
+            
+
+            try:
+                if (newdata["entities"]["user_mentions"] == []):
+                    newdata = {}
+                elif keywords_activated:
+                    lang = newdata["lang"]
+                    if not (lang in supported_languages):
+                        supported_languages.append(lang)
+                        translateKeywords(lang)
+
+                    newdata = contentCheck(newdata, lang)
+            except:
                 newdata = {}
-            else:
-                lang = newdata["lang"]
-                if not (lang in supported_languages):
-                    supported_languages.append(lang)
-                    translateKeywords(lang)
+                #print("no user mentions")
 
-                newdata = contentCheck(newdata, lang)
+            if (outlink != "" and newdata != {}):
+                out.write(orjson.dumps(newdata, option=orjson.OPT_APPEND_NEWLINE))
+
+                if doprofiles:
+                    userProfile(newdata)
+
+            if (numberlines == 0):
+                break
+
+            if (numberlines > 0):
+                numberlines -= 1
+        
         except:
-            newdata = {}
+            print("Most likely a trailing character error due to empty lines")
 
-        if (outlink != "" and newdata != {}):
-            out.write(orjson.dumps(newdata, option=orjson.OPT_APPEND_NEWLINE))
-            userProfile(newdata)
-
-        if (numberlines == 0):
-            break
-
-        if (numberlines > 0):
-            numberlines -= 1
 
 
     if (outlink != ""):
@@ -63,6 +72,7 @@ def sortJson(inplink, filenumber, totalfiles, outlink = "", formatlink = "test",
             os.remove("output/" + outlink)
 
         print("File Completed: " + str(filenumber) + "/" + str(totalfiles) )
+        print("")
 
 
 
@@ -71,7 +81,15 @@ def sortData(data, formatdata, newdata):
         for b in formatdata:
             if (a == b):
                 if (a == "text"):
-                    newdata[a] = re.sub('@[\w]+','',data[a])
+                    try:
+                        newdata[a] = re.sub('@[\w]+|http\S+','',data["extended_tweet"]["full_text"])
+
+                    except:
+                        
+                        newdata[a] = re.sub('@[\w]+|http\S+','',data[a])
+                        
+
+                    newdata[a] = newdata[a].strip()
 
                 elif (type(data[a]) is dict):
                     if (type(formatdata[b]) is dict):
@@ -98,6 +116,7 @@ def sortData(data, formatdata, newdata):
                                                 newdata[a] = {**newdata[a],  **{k: data[a][k]}}
 
                                         else:
+                                            #print(a, "doesn't exist but coordinates:", data["coordinates"]["coordinates"], "do")
                                             return {}
 
                                     else:
@@ -122,6 +141,7 @@ def sortData(data, formatdata, newdata):
                                 newdata[a] = data[a]
 
                             else:
+                                #print(a, "doesn't exist but coordinates:", data["coordinates"]["coordinates"], "do")
                                 return {}
 
                         else:
@@ -134,39 +154,135 @@ def sortData(data, formatdata, newdata):
 
 
 
-def sortFolder(dir, formatlink = "test", linelimit = -1):
+def sortFolder(dir, start, end, formatlink = "format", linelimit = -1):
+    absdir = os.path.abspath(dir)
 
-    if not os.path.isdir("output/"+dir):
-        os.mkdir("output/" + dir)
-    else:
-        shutil.rmtree("output/" + dir)
-        os.mkdir("output/" + dir)
+    if not os.path.isdir("output/data"):
+        os.mkdir("output/data")
 
     if not os.path.isdir("output/profiles"):
         os.mkdir("output/profiles")
-    else:
-        shutil.rmtree("output/profiles")
-        os.mkdir("output/profiles")
-
-    if os.path.isdir("input/"+dir):
-        shutil.rmtree("input/"+dir)
 
     filenumber = 0
-    totalfiles = len([name for name in os.listdir(dir) if zipfile.is_zipfile(dir+"/"+name)])
-    for path in os.listdir(dir):
-        if(zipfile.is_zipfile(dir+"/"+path)):
-            zip_ref = zipfile.ZipFile(dir+"/"+path, 'r')
-            jsonpath = path.replace(".zip", ".json")
-            zip_ref.extract(zip_ref.getinfo("geoEurope/"+jsonpath), 'input/'+dir)
-            
-            filenumber += 1
-            sortJson(dir+"/geoEurope/"+jsonpath, filenumber, totalfiles, dir+"/"+jsonpath, formatlink, linelimit)
+    totalfiles = len([name for name in os.listdir(absdir) if zipfile.is_zipfile(absdir + "/" + name)])
+    #totalfiles = 10260
 
-            os.remove("input/"+ dir + "/geoEurope/"+jsonpath)
+    print("Created Folders and Estimated Total files: ", totalfiles)
+    print("")
 
-    shutil.rmtree("input/"+dir)
+    for path in os.listdir(absdir):
+
+        if(zipfile.is_zipfile(absdir +"/"+ path)):
+            file_date = int(re.sub('\D', '', path))
+
+            if file_date >= start and file_date <= end:
+                print(file_date)
+                zip_ref = zipfile.ZipFile(absdir +"/"+ path, 'r')
+                jsonpath = path.replace(".zip", ".json")
+
+                filenumber += 1
+
+                if os.path.exists("input/data/geoEurope/" + jsonpath):
+                    cleanupCrash(jsonpath)
+                
+
+                elif os.path.exists("output/data/" + jsonpath):
+                    print("File Completed: " + str(filenumber) + "/" + str(totalfiles) )
+                    print("")
+                    continue
+                    
+                
+                else:
+                    zip_ref.extract(zip_ref.getinfo("geoEurope/"+jsonpath), 'input/data')
+
+                    
+                sortJson("data/geoEurope/"+jsonpath, filenumber, totalfiles, "data/"+jsonpath, formatlink, linelimit)
+                
+                os.remove("input/data/geoEurope/"+jsonpath)
+
+        
+        elif os.path.isdir(absdir +"/"+ path):
+            for inner_path in os.listdir(absdir + '/' + path):
+                if(zipfile.is_zipfile(absdir + '/' + path + '/' + inner_path)):
+                    file_date = int(re.sub('\D', '', inner_path))
+
+                    if file_date >= start and file_date <= end:
+                        print(file_date)
+                        zip_ref = zipfile.ZipFile(absdir +"/"+ path + "/" + inner_path, 'r')
+                        jsonpath = inner_path.replace(".zip", ".json")
+
+                        filenumber += 1
+                        totalfiles += 1
+
+                        if os.path.exists("input/data/geoEurope/" + jsonpath):
+                            cleanupCrash(jsonpath)
+
+                
+                        elif os.path.exists("output/data/" + jsonpath):
+                            print("File Completed: " + str(filenumber) + "/" + str(totalfiles) )
+                            print("")
+                            continue
+                        
+                        else:
+                            zip_ref.extract(zip_ref.getinfo("geoEurope/"+jsonpath), 'input/data')
+                            
+                        
+                        sortJson("data/geoEurope/"+jsonpath, filenumber, totalfiles, "data/"+jsonpath, formatlink, linelimit)
+
+                        os.remove("input/data/geoEurope/"+jsonpath)
+
+
+    shutil.rmtree("input/data")
 
     userLocationSetter()
+
+
+def cleanupCrash(jsonpath):
+    if os.path.exists("output/data/" + jsonpath):
+        datafile = open("output/data/" + jsonpath, 'rb')
+
+        for line in datafile:
+            try:
+                data = orjson.loads(line)
+                userid = data["user"]["id"]
+                tweet = { "created_at": data["created_at"], "lang": data["lang"], "text": data["text"], "entities": data["entities"], "id": data["id"], "in_reply_to_screen_name": data["in_reply_to_screen_name"], "place": data["place"] }
+                
+                if os.path.exists("output/profiles/" + str(userid)):
+                    profile = open("output/profiles/" + str(userid) + ".json", 'rb')
+                    profile_data = orjson.loads(profile.read())
+                    profile.close()
+
+                    tweets = profile_data["tweets"]
+
+                    if len(tweets) > 1:
+                        updated = { "user": { "screen_name" : data["user"]["screen_name"], "id" : userid}, "mentions": [], "tweets" : [] }
+
+                        for t in tweets:
+                            if t != tweet:
+                                updated["tweets"].append(t)
+
+                                for m in tweet["entities"]["user_mentions"]:
+                                    if m not in updated["mentions"]:
+                                        updated["mentions"].append(m)
+
+
+                        
+                        profile_add = open("output/profiles/" + str(userid) + ".json", 'wb')
+                        profile_add.write(orjson.dumps(updated))
+                        profile_add.close()
+                            
+
+
+                    else:
+                        os.remove("output/profiles/" + userid)
+
+            except:
+                print("Trailing Sentance Error")
+
+        datafile.close()
+    
+    os.remove("output/data/" + jsonpath)
+
 
 
 def translateKeywords(lang):
@@ -190,11 +306,6 @@ def contentCheck(data, lang):
 
 
 def userProfile(data):
-    if (False):
-        text = data["text"]
-        translation = GoogleTranslator(source='auto').translate(text=text)
-        data["text"] = translation
-
 
     tweet = { "created_at": data["created_at"], "lang": data["lang"], "text": data["text"], "entities": data["entities"], "id": data["id"], "in_reply_to_screen_name": data["in_reply_to_screen_name"], "place": data["place"] }
     mention = data["entities"]["user_mentions"]
@@ -225,6 +336,7 @@ def userProfile(data):
         profile.write(orjson.dumps({ "user": { "screen_name" : data["user"]["screen_name"], "id" : data["user"]["id"]}, "mentions": mention, "tweets" : [tweet] }))
         profile.close()
     
+
     
     
 def userLocationSetter():
@@ -268,6 +380,8 @@ def userLocationSetter():
             os.remove("output/profiles/" + path)
 
 
+
+
 def addProfile(data, inp, out):
     if not os.path.isdir("output/profiles/" + out ):
         os.mkdir("output/profiles/" + out)
@@ -276,13 +390,33 @@ def addProfile(data, inp, out):
     profile_add.write(orjson.dumps(data))
     profile_add.close()
 
-    
-
 
 
 
 if __name__ == '__main__':
-    sortFolder("zips")
+    print("")
+    inplink = input("Is this being run on the remote server? (Y/N): ")
+    print("")
 
+    if inplink.lower() == "y" or inplink.lower() == "yes":
+        path = "/hywel/Tweets/geo/Europe"
+    
+    else:
+        path = "test"
 
     
+    inpkey = input("Are keywords being used? (Y/N): ")
+    print("")
+
+    if inpkey.lower() == "y" or inpkey.lower() == "yes":
+        keywords_activated = True
+    
+    else:
+        keywords_activated = False
+    
+    
+    print("Started dataSorter")
+    print("")
+
+
+    sortFolder(path, 2019120416, 2021063023)
