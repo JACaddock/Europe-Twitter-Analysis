@@ -4,12 +4,21 @@ import sentimentAnalyser as sa
 
 
 if __name__ == "__main__":
-    ds.keywords = {'en': ["home", "hate"]}
-    ds.supported_languages = ['en']
+    print("")
+    demo = input("Is this the demo? (Y/N) : ")
+    print("")
 
+    if demo.lower() == "y" or demo.lower() == "yes":
 
+        ds.keywords = {'en': ["home", "hate"]}
+        ds.supported_languages = ['en']
 
-    ds.sortFolder("zips")
-    print(ds.keywords)
+        ds.sortFolder("input/zips", 2019120416, 2020120416, False)
+        print(ds.keywords)
 
-    sa.showProfiles()
+        sa.startAnalysis("profiles", "sentiment", "graph", False)
+    
+    else:
+        print("")
+        demo = input("Is this the demo? (Y/N) : ")
+        print("")

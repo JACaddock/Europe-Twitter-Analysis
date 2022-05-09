@@ -5,87 +5,90 @@ import matplotlib.dates as mdates
 from datetime import datetime
 
 
-checkedprofile = {}
+checked_profile = {}
 mentioned = {}
-sentimentover = {}
+sentiment_over = {}
 
 
-def startAnalysis():
-    if not os.path.isdir("output/sentiment" ):
-        print("Creating sentiment json")
-        os.mkdir("output/sentiment")
+def startAnalysis(profile_path, sentiment_path, graph_path, do_print):
+    if not os.path.isdir("output/" + sentiment_path ):
+        if do_print:
+            print("Creating sentiment json")
+        
+        os.mkdir("output/" + sentiment_path)
 
-        checkProfiles()
-        buildProfiles()
+        checkProfiles(profile_path)
+        buildProfiles(profile_path)
 
-        for over in sentimentover:
-            size = len(sentimentover[over][0])
-            quickSortSentimentOver(sentimentover[over], 0, size - 1)
+        for over in sentiment_over:
+            size = len(sentiment_over[over][0])
+            quickSortSentimentOver(sentiment_over[over], 0, size - 1)
 
-            sentimentJson = open("output/sentiment/" + over +".json", 'wb')
-            sentimentJson.write(orjson.dumps(sentimentover[over]))
-            sentimentJson.close()
+            sentiment_JSON = open("output/" + sentiment_path + "/" + over +".json", 'wb')
+            sentiment_JSON.write(orjson.dumps(sentiment_over[over]))
+            sentiment_JSON.close()
 
         
 
     else:
-        print("sentiment folder already exists, delete folder if you need to recheck or build profiles")
+        if do_print:
+            print("sentiment folder already exists, delete folder if you need to recheck or build profiles")
 
-        for json in os.listdir("output/sentiment"):
+        for json in os.listdir("output/" + sentiment_path):
 
-            sentimentJson = orjson.loads(open("output/sentiment/" + json, 'rb').read())
+            sentiment_JSON = orjson.loads(open("output/" + sentiment_path + "/" + json, 'rb').read())
 
-            for i in range(len(sentimentJson[0])):
-                sentimentJson[0][i] = datetime.strptime(sentimentJson[0][i], "%Y-%m-%d").date()
+            for i in range(len(sentiment_JSON[0])):
+                sentiment_JSON[0][i] = datetime.strptime(sentiment_JSON[0][i], "%Y-%m-%d").date()
 
 
             key = json.replace(".json", "")
-            sentimentover[key] = sentimentJson
+            sentiment_over[key] = sentiment_JSON
 
 
 
-    if not os.path.isdir("output/graphs"):
-        os.mkdir("output/graphs")
+    if not os.path.isdir("output/" + graph_path):
+        os.mkdir("output/" + graph_path)
         
     
-    for keys in sentimentover:
+    for keys in sentiment_over:
 
-        if len(sentimentover[keys][0]) > 1:
-            total_tweets = len(sentimentover[keys][1])
+        if len(sentiment_over[keys][0]) > 1:
+            total_tweets = len(sentiment_over[keys][1])
 
 
             # %Y is YYYY | %m is MM | %d is DD
             target_date = "%d/%m/%Y"
-            sentimentover[keys] = workoutAverageSentiment(keys, target_date)
+            sentiment_over[keys] = workoutAverageSentiment(keys, target_date)
             plotGraph(keys, target_date, keys+" Day", total_tweets)
 
             target_date = "%m/%Y"
-            sentimentover[keys] = workoutAverageSentiment(keys, target_date)
+            sentiment_over[keys] = workoutAverageSentiment(keys, target_date)
             plotGraph(keys, target_date, keys+" Month", total_tweets)
 
 
 
-def checkProfiles():
-    for path in os.listdir("output/profiles"):
-        for json in os.listdir("output/profiles/" + path):
-            file = open("output/profiles/" + path + "/" + json, 'rb')
+def checkProfiles(profile_path):
+    for path in os.listdir("output/" + profile_path):
+        for json in os.listdir("output/" + profile_path + "/" + path):
+            file = open("output/" + profile_path + "/" + path + "/" + json, 'rb')
             profile = orjson.loads(file.read())
 
-            checkedprofile[profile["user"]["id"]] = profile["place"]["country_code"]
+            checked_profile[profile["user"]["id"]] = profile["place"]["country_code"]
 
 
 
-def buildProfiles():
-    for path in os.listdir("output/profiles"):
+def buildProfiles(profile_path):
+    for path in os.listdir("output/" + profile_path):
         #scores = [path]
         #print(path)
         
-        for json in os.listdir("output/profiles/" + path):
-            file = open("output/profiles/" + path + '/' + json , 'rb')
+        for json in os.listdir("output/" + profile_path + "/" + path):
+            file = open("output/" + profile_path + "/" + path + '/' + json , 'rb')
             profile = orjson.loads(file.read())
 
             #inmention = False
-            checkedprofile[profile["user"]["id"]] = profile["place"]["country_code"]
+            checked_profile[profile["user"]["id"]] = profile["place"]["country_code"]
 
             #if profile["user"]["id"] in mentioned:
                 #print(profile["user"])
@@ -105,9 +108,9 @@ def buildProfiles():
 
 
 
-                    if mention["id"] in checkedprofile:
+                    if mention["id"] in checked_profile:
                         profile_country = profile["place"]["country_code"]
-                        mention_country = checkedprofile[mention["id"]]
+                        mention_country = checked_profile[mention["id"]]
 
                         if profile_country != mention_country:
                             score = tweetAnalyser(tweet)
@@ -116,11 +119,11 @@ def buildProfiles():
                             #print(profile["user"]["id"], profile_country, mention["id"], mention_country, score, datetime_object)
                             
                             try:
-                                sentimentover[profile_country + " of " + mention_country][0].append(datetime_object)
-                                sentimentover[profile_country + " of " + mention_country][1].append(score)
+                                sentiment_over[profile_country + " of " + mention_country][0].append(datetime_object)
+                                sentiment_over[profile_country + " of " + mention_country][1].append(score)
 
                             except:
-                                sentimentover[profile_country + " of " + mention_country] = [[datetime_object],[score]]
+                                sentiment_over[profile_country + " of " + mention_country] = [[datetime_object],[score]]
 
 
 
@@ -201,8 +204,8 @@ def partition(array, low, high):
 
 def workoutAverageSentiment(target_key, target_date):
     averages = [[],[]]
-    dates = sentimentover[target_key][0]
-    sentiments = sentimentover[target_key][1]
+    dates = sentiment_over[target_key][0]
+    sentiments = sentiment_over[target_key][1]
 
     last_date = 0
     date_date = 0
@@ -232,9 +235,9 @@ def workoutAverageSentiment(target_key, target_date):
 
 
 
-def plotGraph(target_key, target_date, fig_name, total_tweets):
-    date = sentimentover[target_key][0]
-    sentiment = sentimentover[target_key][1]
+def plotGraph(graph_path, target_key, target_date, fig_name, total_tweets):
+    date = sentiment_over[target_key][0]
+    sentiment = sentiment_over[target_key][1]
 
     plt.figure(fig_name, figsize=(10,6))
 
@@ -245,11 +248,13 @@ def plotGraph(target_key, target_date, fig_name, total_tweets):
     plt.xlabel("Date")
     plt.ylabel("Sentiment")
 
-    plt.savefig("output/graphs/" + fig_name)
+    plt.savefig("output/" + graph_path + "/" + fig_name)
     plt.close(fig_name)
 
 
 
 
 if __name__ == '__main__':
-    startAnalysis()
+    startAnalysis("profiles", "sentiment", "graph", False)
+
+    print("Finished Sentiment Analyser")
