@@ -8,7 +8,6 @@ from datetime import datetime
 import numpy as np
 
 
-
 checked_profile = {} # The ID and Country Code of every profile
 baseline_sentiment = {} # The Baseline Sentiments for every country
 sentiment_over = {} # The Sentiment that Country A has over Country B

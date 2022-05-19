@@ -355,3 +355,5 @@ keys/
 output/
 zips/
 test/
+preprocessed/
+video/
